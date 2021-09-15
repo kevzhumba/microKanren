@@ -1,5 +1,7 @@
 package microKanren
 
+import scala.collection.immutable.{AbstractSeq, LinearSeq}
+
 object MicroKanren {
 
   type Goal = State => Stream 
@@ -70,6 +72,40 @@ object MicroKanren {
     (state: State) => bind(g1(state), g2)
   }
 
-  
+  def zzz(g: Goal): Goal = {
+    (s: State) => ImmatureStream(() => g(s))
+  }
 
+  def conjMult(goals: Goal*): Goal = {
+    goals match {
+      case g :: Nil => zzz(g)
+      case g :: gs => conj(zzz(g), conjMult(gs: _*))
+    }
+  }
+
+  def disjMult(goals: Goal*): Goal = {
+    goals match {
+      case g :: Nil => zzz(g)
+      case g :: gs => disj(zzz(g), disjMult(gs: _*))
+    }
+  }
+
+  def pull(stream: Stream): Stream = stream match {
+    case ImmatureStream(func) => pull(func())
+    case _ => stream
+  }
+
+  def take_all(stream: Stream): List[State] = pull(stream) match {
+    case EmptyStream() => List()
+    case MatureStream(state, tailStream) =>  state :: take_all(tailStream)
+  }
+
+  def take_n(n: Int, stream: Stream): List[State] =
+    if (n <= 0) {List()}
+    else {
+      pull(stream) match {
+        case EmptyStream() => List()
+        case MatureStream(state, tailStream) => state :: take_n(n - 1, tailStream)
+      }
+    }
 }
