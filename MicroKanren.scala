@@ -1,16 +1,13 @@
 package microKanren
 
-import scala.collection.immutable.{AbstractSeq, LinearSeq}
+import scala.collection.immutable.{LinearSeq}
 
 object MicroKanren {
 
   type Goal = State => Stream 
-  type Subst = Map[Var, Val]
+  type Subst = Map[Var, Any]
 
-  abstract trait Val
-  case class Var(index: Int) extends Val
-  case class IntWrapper(value: Int) extends Val
-  case class ListWrapper(list: List[Val]) extends Val
+  case class Var(index: Int)
 
   abstract trait Stream
   case class MatureStream(state: State, stream: Stream) extends Stream
@@ -22,20 +19,20 @@ object MicroKanren {
 
   def EmptyState(): State = State(Map(), 0)
 
-  def walk(u: Val, subst: Subst): Val = {
+  def walk(u: Any, subst: Subst): Any = {
     if (u.isInstanceOf[Var] && subst.contains(u.asInstanceOf[Var])) walk(subst((u.asInstanceOf[Var])), subst) else u
   }
 
-  def extendSubst(x: Var, v: Val, s: Subst): Subst = s + (x -> v)
+  def extendSubst(x: Var, v: Any, s: Subst): Subst = s + (x -> v)
 
-  def unify(a: Val, b: Val, s: Subst): Subst = (walk(a, s), walk(b, s)) match {
+  def unify(a: Any, b: Any, s: Subst): Subst = (walk(a, s), walk(b, s)) match {
     case (Var(index1), Var(index2)) if (index1 == index2) => s
     case (x: Var, v) => extendSubst(x, v, s)
     case (v, x: Var) => extendSubst(x, v, s)
-    case (ListWrapper(list1), ListWrapper(list2)) if list1.length == list2.length => 
+    case (list1: List[Any], list2: List[Any]) if list1.length == list2.length => 
       if (list1.isEmpty) s
       val newS = unify(list1.head, list2.head, s) 
-      unify(ListWrapper(list1.tail), ListWrapper(list2.tail), newS)
+      unify((list1.tail), (list2.tail), newS)
     case (u, v) if u == v => s
     case (_, _) => throw UnificationException()
   }
@@ -44,7 +41,7 @@ object MicroKanren {
     (state: State) => f(Var(state.c))(state.copy(c = state.c + 1))
   }
 
-  def equality(a: Val, b: Val): Goal = {
+  def :=(a: Any, b: Any): Goal = {
     (state: State) => try {
       MatureStream(State(unify(a, b, state.s), state.c), EmptyStream())
     } catch {
